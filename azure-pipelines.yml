@@ -1,0 +1,40 @@
+trigger:
+- none
+  
+resources:
+- repo: self
+  
+stages:
+- stage: Build
+  displayName: Build image
+  jobs:  
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: Docker@2
+      displayName: Build and Push platform plugin
+      inputs:
+        script: 'echo platform plugin.' 
+        addPipelineData: false
+    - task: Docker@2
+      displayName: Build and Push ds platform plugin
+      inputs:
+        script: 'echo ds platform plugin.' 
+        addPipelineData: false
+    - task: Docker@2
+      displayName: Build and Push ds direct platform plugin
+      inputs:
+        script: 'echo ds direct platform plugin.'
+        addPipelineData: false
+    - task: Docker@2
+      displayName: Build cleanup plugin
+      inputs:
+        script: 'echo cleanup plugin.'
+        addPipelineData: false
+    - task: Docker@2
+      displayName: Push cleanup plugin
+      inputs:
+        script: 'echo push cleanup plugin.'
+        addPipelineData: false
