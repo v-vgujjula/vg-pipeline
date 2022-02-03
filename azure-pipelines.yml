@@ -13,14 +13,27 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     steps:
-    - task: Bash@3
+    - task: Bash@1
       displayName: Build and Push platform plugin
       inputs:
         targetType: 'inline'
         script: | 
           echo "Sleeping for k8..."
-    # - task: task2@2
-    #   displayName: Build and Push ds platform plugin
-    #   inputs:
-    #     script: 'echo ds platform plugin.' 
-    #     addPipelineData: false
+    - task: Bash@2
+      displayName: Build and Push ds platform plugin
+      inputs:
+        targetType: 'inline'
+        script: | 
+          echo "Sleeping for ds indirect..."
+    - task: Bash@3
+      displayName: Build and Push ds platform plugin
+      inputs:
+        targetType: 'inline'
+        script: | 
+          echo "Sleeping for ds direct..."
+    - task: Bash@4
+      displayName: Build and Push ds platform plugin
+      inputs:
+        targetType: 'inline'
+        script: | 
+          echo "Sleeping for k8 cleanup..."
