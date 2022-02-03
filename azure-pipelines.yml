@@ -1,9 +1,13 @@
 trigger:
 - none
   
+variables:
+- name: data-services
+  value: yes
+
 resources:
 - repo: self
-  
+
 stages:
 - stage: Build
   displayName: Build image
@@ -20,6 +24,7 @@ stages:
         script: | 
           echo "Sleeping for k8..."
     - task: Bash@3
+      condition: eq(variables.data-services, 'no'))
       displayName: Build and Push ds platform plugin
       inputs:
         targetType: 'inline'
