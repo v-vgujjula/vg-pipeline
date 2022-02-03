@@ -13,7 +13,7 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     steps:
-    - task: task1@2
+    - task: Bash@3
       displayName: Build and Push platform plugin
       inputs:
         targetType: 'inline'
