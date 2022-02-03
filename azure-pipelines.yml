@@ -1,9 +1,5 @@
 trigger:
 - none
-  
-# variables:
-# - name: data-services
-#   value: true
 
 resources:
 - repo: self
@@ -24,20 +20,21 @@ stages:
         script: | 
           echo "Sleeping for k8..."
     - task: Bash@3
-      condition: eq('$(data-services)', 'true')
+      condition: eq('$(dataServices)', 'true')
       displayName: Build and Push ds platform plugin
       inputs:
         targetType: 'inline'
         script: | 
           echo "Sleeping for ds indirect..."
     - task: Bash@3
+      condition: eq('$(dataServices)', 'true')
       displayName: Build and Push ds platform plugin
       inputs:
         targetType: 'inline'
         script: | 
           echo "Sleeping for ds direct..."
     - task: Bash@3
-      displayName: Build and Push ds platform plugin
+      displayName: Build and Push k8 platform plugin
       inputs:
         targetType: 'inline'
         script: | 
