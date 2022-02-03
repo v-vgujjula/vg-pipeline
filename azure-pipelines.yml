@@ -16,10 +16,11 @@ stages:
     - task: task1@2
       displayName: Build and Push platform plugin
       inputs:
-        script: 'echo platform plugin.' 
-        addPipelineData: false
-    - task: task2@2
-      displayName: Build and Push ds platform plugin
-      inputs:
-        script: 'echo ds platform plugin.' 
-        addPipelineData: false
+        targetType: 'inline'
+        script: | 
+          echo "Sleeping for k8..."
+    # - task: task2@2
+    #   displayName: Build and Push ds platform plugin
+    #   inputs:
+    #     script: 'echo ds platform plugin.' 
+    #     addPipelineData: false
