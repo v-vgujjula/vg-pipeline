@@ -13,28 +13,13 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     steps:
-    - task: k8-platform@2
+    - task: task1@2
       displayName: Build and Push platform plugin
       inputs:
         script: 'echo platform plugin.' 
         addPipelineData: false
-    - task: ds-platform@2
+    - task: task2@2
       displayName: Build and Push ds platform plugin
       inputs:
         script: 'echo ds platform plugin.' 
-        addPipelineData: false
-    - task: ds-direct-platform@2
-      displayName: Build and Push ds direct platform plugin
-      inputs:
-        script: 'echo ds direct platform plugin.'
-        addPipelineData: false
-    - task: k8-cleanup@2
-      displayName: Build cleanup plugin
-      inputs:
-        script: 'echo cleanup plugin.'
-        addPipelineData: false
-    - task: k8-cleanup-push@2
-      displayName: Push cleanup plugin
-      inputs:
-        script: 'echo push cleanup plugin.'
         addPipelineData: false
