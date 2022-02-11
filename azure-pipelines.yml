@@ -20,14 +20,14 @@ stages:
         script: | 
           echo "Sleeping for k8..."
     - task: Bash@3
-      condition: eq('$(dataServices)', 'true')
+      condition: eq($(dataServices), 'true')
       displayName: Build and Push ds platform plugin
       inputs:
         targetType: 'inline'
         script: | 
           echo "Sleeping for ds indirect..."
     - task: Bash@3
-      condition: eq('$(dataServices)', 'true')
+      condition: eq($(dataServices), 'true')
       displayName: Build and Push ds platform plugin
       inputs:
         targetType: 'inline'
