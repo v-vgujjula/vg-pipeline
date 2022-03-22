@@ -1,0 +1,13 @@
+## DS connect Variables
+CONNECTED_CLUSTER_TYPE = "Microsoft.Kubernetes/connectedClusters"
+CONNECTED_CLUSTER_API_VERSION = "2021-10-01"
+CUSTOM_LOCATION_TYPE = "Microsoft.ExtendedLocation/customLocations"
+CUSTOM_LOCAION_API_VERSION = "2021-08-15"
+DATA_CONTROLLER_TYPE = "Microsoft.AzureArcData/DataControllers"
+DATA_CONTROLLER_API_VERSION = "2021-11-01"
+SQL_MI_TYPE = "Microsoft.AzureArcData/SqlManagedInstances"
+SQL_MI_API_VERSION = "2021-11-01"
+POSTGRES_TYPE = "Microsoft.AzureArcData/PostgresInstances"
+POSTGRES_API_VERSION = "2021-07-01-preview"
+CONNECTED_CLUSTER_EXTENSION_TYPE = "Microsoft.KubernetesConfiguration/extensions"
+CONNECTED_CLUSTER_EXTENSION_API_VERSION = "2021-09-01"

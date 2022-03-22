@@ -21,18 +21,23 @@ stages:
           echo "Sleeping for k8..."
     - task: Bash@3
       condition: eq(variables['dataServices'], 'true')
-      displayName: Build and Push ds platform plugin
+      displayName: Build and Push ds indirect platform plugin
       inputs:
         targetType: 'inline'
         script: | 
           echo "Sleeping for ds indirect..."
-    - task: Bash@3
+    - task: Docker@2
       condition: eq(variables['dataServices'], 'true')
-      displayName: Build and Push ds platform plugin
+      displayName: Build and Push ds direct platform plugin
       inputs:
-        targetType: 'inline'
-        script: | 
-          echo "Sleeping for ds direct..."
+        containerRegistry: 'arcdscontainerregistry'
+        repository: 'arcdscontainerregistry.azurecr.io/ds-pipeline-fail'
+        command: 'buildAndPush'
+        Dockerfile: 'src/plugins/ds_connect_core/Dockerfile'
+        buildContext: 'src/plugins'
+        tags: $(dsconnectplatformPluginImageVersion)
+        arguments: '--build-arg SONOBUOY_VERSION=$(sonobuoyVersion)'
+        addPipelineData: false
     - task: Bash@3
       displayName: Build and Push k8 platform plugin
       inputs:
