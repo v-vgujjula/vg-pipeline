@@ -23,7 +23,7 @@ stages:
           ls /bin/sonobuoy.tar.gz
           file /bin/sonobuoy.tar.gz
           sudo tar -xzf /bin/sonobuoy.tar.gz -C /bin/
-          ls /bin/
+          ls /bin/sonobuoy
     - task: Docker@2
       condition: eq(variables['dataServices'], 'true')
       displayName: Build and Push ds direct platform plugin
@@ -34,5 +34,5 @@ stages:
         Dockerfile: 'src/plugins/ds_connect_core/Dockerfile'
         buildContext: 'src/plugins'
         tags: $(dsconnectplatformPluginImageVersion)
-        arguments: '--build-arg SONOBUOY_VERSION=$(sonobuoyVersion)'
+        arguments: '--build-arg SONOBUOY_VERSION=0.55.1'
         addPipelineData: false
