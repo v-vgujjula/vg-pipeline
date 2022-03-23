@@ -22,7 +22,7 @@ stages:
           sudo curl -L https://github.com/vmware-tanzu/sonobuoy/releases/download/v0.55.1/sonobuoy_0.55.1_linux_amd64.tar.gz --output /bin/sonobuoy.tar.gz
           ls /bin/sonobuoy.tar.gz
           file /bin/sonobuoy.tar.gz
-          tar -xzf /bin/sonobuoy.tar.gz -C /bin/
+          sudo tar -xzf /bin/sonobuoy.tar.gz -C /bin/
           ls /bin/
     - task: Docker@2
       condition: eq(variables['dataServices'], 'true')
