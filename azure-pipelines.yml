@@ -25,7 +25,7 @@ stages:
       inputs:
         targetType: 'inline'
         script: | 
-          sudo curl -L https://github.com/vmware-tanzu/sonobuoy/releases/download/v${SONOBUOY_VERSION}/sonobuoy_${SONOBUOY_VERSION}_linux_amd64.tar.gz -o /bin/sonobuoy.tar.gz
+          sudo curl -L https://github.com/vmware-tanzu/sonobuoy/releases/download/v${SONOBUOY_VERSION}/sonobuoy_${SONOBUOY_VERSION}_linux_amd64.tar.gz -O /bin/sonobuoy.tar.gz
           ls /bin/sonobuoy.tar.gz
           file /bin/sonobuoy.tar.gz
           tar -xzf /bin/sonobuoy.tar.gz -C /bin/
