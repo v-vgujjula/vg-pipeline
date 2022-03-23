@@ -26,7 +26,8 @@ stages:
         targetType: 'inline'
         script: | 
           sudo curl -L https://github.com/vmware-tanzu/sonobuoy/releases/download/v${SONOBUOY_VERSION}/sonobuoy_${SONOBUOY_VERSION}_linux_amd64.tar.gz --output /bin/sonobuoy.tar.gz
-          ls /bin/
+          ls /bin/sonobuoy.tar.gz
+          tar -xzf /bin/sonobuoy.tar.gz -C /bin/
     - task: Docker@2
       condition: eq(variables['dataServices'], 'true')
       displayName: Build and Push ds direct platform plugin
