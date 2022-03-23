@@ -10,7 +10,7 @@ RUN apt-get update
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pytest pytest-xdist filelock junit_xml kubernetes azure.identity
 RUN pip install azure.mgmt.resource
 ## az arcdata installation
-RUN apt-get install gnupg ca-certificates curl wget jq software-properties-common apt-transport-https lsb-release -y
+RUN apt-get install gnupg ca-certificates curl wget tar jq software-properties-common apt-transport-https lsb-release -y
 RUN apt-get update
 RUN curl -sSL https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
 RUN apt-add-repository https://packages.microsoft.com/ubuntu/18.04/prod
