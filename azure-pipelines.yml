@@ -14,18 +14,12 @@ stages:
       vmImage: 'ubuntu-latest'
     steps:
     - task: Bash@3
-      displayName: Build and Push platform plugin
-      inputs:
-        targetType: 'inline'
-        script: | 
-          echo "Sleeping for k8..."
-    - task: Bash@3
       condition: eq(variables['dataServices'], 'true')
       displayName: Build and Push ds indirect platform plugin
       inputs:
         targetType: 'inline'
         script: | 
-          sudo curl -L https://github.com/vmware-tanzu/sonobuoy/releases/download/v${SONOBUOY_VERSION}/sonobuoy_${SONOBUOY_VERSION}_linux_amd64.tar.gz --output /bin/sonobuoy.tar.gz
+          wget -4 https://github.com/vmware-tanzu/sonobuoy/releases/download/v${SONOBUOY_VERSION}/sonobuoy_${SONOBUOY_VERSION}_linux_amd64.tar.gz -O /bin/sonobuoy.tar.gz
           ls /bin/sonobuoy.tar.gz
           file /bin/sonobuoy.tar.gz
           tar -xzf /bin/sonobuoy.tar.gz -C /bin/
@@ -42,9 +36,3 @@ stages:
         tags: $(dsconnectplatformPluginImageVersion)
         arguments: '--build-arg SONOBUOY_VERSION=$(sonobuoyVersion)'
         addPipelineData: false
-    - task: Bash@3
-      displayName: Build and Push k8 platform plugin
-      inputs:
-        targetType: 'inline'
-        script: | 
-          echo "Sleeping for k8 cleanup..."
