@@ -26,6 +26,7 @@ stages:
           sudo tar -xzf /bin/sonobuoy.tar.gz -C /bin/
           ls /bin/sonobuoy
     - task: Docker@2
+      condition: eq(variables['dataServices'], 'true')
       displayName: Build ds-connect plugin
       inputs:
         containerRegistry: arcdscontainerregistry
@@ -37,6 +38,7 @@ stages:
         arguments: '--build-arg SONOBUOY_VERSION=$(sonobuoyVersion)'
         addPipelineData: false
     - task: Docker@2
+      condition: eq(variables['dataServices'], 'true')
       displayName: Push ds-connect plugin
       inputs:
         command: push
