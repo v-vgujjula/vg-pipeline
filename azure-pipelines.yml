@@ -25,7 +25,7 @@ stages:
       inputs:
         targetType: 'inline'
         script: | 
-          echo "Sleeping for ds indirect..."
+          echo $(sonobuoyVersion)
     - task: Docker@2
       condition: eq(variables['dataServices'], 'true')
       displayName: Build and Push ds direct platform plugin
