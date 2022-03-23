@@ -31,7 +31,9 @@ RUN curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 |
 
 ARG SONOBUOY_VERSION
 RUN curl -L https://github.com/vmware-tanzu/sonobuoy/releases/download/v${SONOBUOY_VERSION}/sonobuoy_${SONOBUOY_VERSION}_linux_amd64.tar.gz --output /bin/sonobuoy.tar.gz
-
+RUN echo $(https://github.com/vmware-tanzu/sonobuoy/releases/download/v${SONOBUOY_VERSION}/sonobuoy_${SONOBUOY_VERSION}_linux_amd64.tar.gz)
+RUN echo $(ls -l /bin/sonobuoy.tar.gz)
+RUN echo $(file /bin/sonobuoy.tar.gz)
 RUN ["tar", "-xzf", "/bin/sonobuoy.tar.gz", "-C", "/bin/"]
 
 COPY ./ds_connect_core/arc_ds_connect_conformance.sh /
