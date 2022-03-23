@@ -34,5 +34,5 @@ stages:
         Dockerfile: 'src/plugins/ds_connect_core/Dockerfile'
         buildContext: 'src/plugins'
         tags: $(dsconnectplatformPluginImageVersion)
-        arguments: '--build-arg SONOBUOY_VERSION=0.55.1'
+        arguments: '--build-arg SONOBUOY_VERSION=$(variables[sonobuoyVersion])'
         addPipelineData: false
