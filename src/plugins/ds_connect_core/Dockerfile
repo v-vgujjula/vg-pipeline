@@ -17,7 +17,7 @@ RUN apt-get update
 RUN curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 #RUN az upgrade --yes
 ## we are downgrading azure-cli to 2.35.0 
-RUN apt-get install azure-cli=2.35.0-1~focal -y
+RUN apt-get install azure-cli=2.35.0-1~focal --allow-downgrades
 RUN az extension add --upgrade --name connectedk8s --yes --debug
 RUN az extension add --upgrade --name k8s-configuration --yes --debug
 RUN az extension add --upgrade --name k8s-extension --yes --debug
