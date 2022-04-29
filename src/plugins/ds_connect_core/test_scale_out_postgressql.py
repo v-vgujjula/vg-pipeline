@@ -6,9 +6,9 @@ pytestmark = pytest.mark.dsarcagentstest
 
 @pytest.mark.skipif(not os.getenv('PSQL_SERVERGROUP_NAME'), reason="PSQL_SERVERGROUP_NAME not found")
 def test_scale_out_postgressql(env_dict):
-    namespace = env_dict.get('NAMESPACE')
+    namespace = env_dict.get('CUSTOM_LOCATION_NAME')
     if not namespace:
-        pytest.fail('ERROR: variable NAMESPACE is required.')
+        pytest.fail('ERROR: variable CUSTOM_LOCATION_NAME is required.')
     
     if env_dict.get('PSQL_SERVERGROUP_NAME'):
         psql_name = env_dict.get('PSQL_SERVERGROUP_NAME')

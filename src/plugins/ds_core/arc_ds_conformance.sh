@@ -18,10 +18,21 @@ saveResults() {
 # Ensure that we tell the Sonobuoy worker we are done regardless of results.
 trap saveResults EXIT
 ## DS onboarding
+echo "Upgrading Extensions"
+az extension add --upgrade --name arcdata --yes 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
+az extension add --upgrade --name k8s-configuration --yes 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
+az extension add --upgrade --name k8s-extension --yes 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
+az extension add --upgrade --name customlocation --yes 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
+az extension add --upgrade --name connectedk8s --yes 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
+az -v
 echo "Onboarding DS indirect services"
-
 if [[ -z "${NAMESPACE}" ]]; then
   echo "ERROR: parameter NAMESPACE is required." > ${results_dir}/error
+  python3 ds_setup_failure_handler.py
+fi
+
+if [[ -z "${SERVICE_TYPE}" ]]; then
+  echo "ERROR: parameter SERVICE_TYPE is required." > ${results_dir}/error
   python3 ds_setup_failure_handler.py
 fi
 
@@ -166,28 +177,44 @@ then
   ###########################
   ## TODO: data controller creation is not supporting fully with k8 native files use case while using config profile, so here we are now using az arcdata 
   ## Need to wait for official release.
-  if [[ $(kubectl -n arc-ds-config get configmap arc-ds-config -o jsonpath='{.data.control\.json}') ]]
+  check_dsconfigmap=$(kubectl -n arc-ds-config get configmap arc-ds-config -o jsonpath='{.data.control\.json}' --ignore-not-found)
+  if [[ "${check_dsconfigmap}" ]]
   then
     printf "\nData controller creating from 'arc-ds-config' configmap\n"
     config_profile_path="/tmp/control.json"
     kubectl -n arc-ds-config get configmap arc-ds-config -o jsonpath='{.data.control\.json}' >$config_profile_path 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
+    ## check service type
+    dc_servicetype=$(more $config_profile_path | grep "serviceType" | awk -F':' '{print $2}' | awk -F',' '{print $1}' | xargs)
+    if [[ $dc_servicetype != ${SERVICE_TYPE}  ]]
+    then
+      echo "service type mismatch with arc ds config profile" > ${results_dir}/error && { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+    fi
     az arcdata dc create --name ${NAMESPACE} --path "/tmp" --k8s-namespace ${NAMESPACE} --use-k8s --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+    ## 30minutes
+    TIMEOUT=1800
+    ## 2 minutes
+    RETRY_INTERVAL=120
     while [ True ]
     do
+      if [ "$TIMEOUT" -le 0 ]; then
+        echo "time out at Data controller creation..." > ${results_dir}/error && { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      fi
       controller_status=$(kubectl get datacontroller -n ${NAMESPACE})
       if [[ $(echo $controller_status | grep "Ready") ]]
       then
         printf "\nController Ready\n"
         break
-      else
-        printf "\nWaiting for Data controller to get it Ready\n"
-        sleep 2m
       fi
+      sleep "$RETRY_INTERVAL"
+      TIMEOUT=$(($TIMEOUT-$RETRY_INTERVAL))
+      printf "\nWaiting for Data controller to get it Ready\n"
     done
   else
     if [[ ${DATA_CONTROLLER_STORAGE_CLASS} == "" || ${DATA_CONTROLLER_STORAGE_CLASS} == "default" ]]
     then
-      az arcdata dc create --name ${NAMESPACE} --profile-name ${CONFIG_PROFILE} --k8s-namespace ${NAMESPACE} --use-k8s --storage-class "default" --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      az arcdata dc config init -s ${CONFIG_PROFILE} -p .
+      sed -i 's/\"serviceType\":.*/\"serviceType\": '"\"${SERVICE_TYPE}\"",'/g' "control.json"
+      az arcdata dc create --name ${NAMESPACE} --path . --k8s-namespace ${NAMESPACE} --use-k8s --storage-class "default" --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
     else
       sc_info=$(kubectl get sc)
       echo $sc_info
@@ -196,20 +223,30 @@ then
       then
         echo "Storage class : ${DATA_CONTROLLER_STORAGE_CLASS}  not exists. Please specify a valid name." > ${results_dir}/error && { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
       else
-        az arcdata dc create --name ${NAMESPACE} --profile-name ${CONFIG_PROFILE} --k8s-namespace ${NAMESPACE} --use-k8s --storage-class ${DATA_CONTROLLER_STORAGE_CLASS} --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+        az arcdata dc config init -s ${CONFIG_PROFILE} -p .
+        sed -i 's/\"serviceType\":.*/\"serviceType\": '"\"${SERVICE_TYPE}\"",'/g' "control.json"
+        az arcdata dc create --name ${NAMESPACE} --path . --k8s-namespace ${NAMESPACE} --use-k8s --storage-class ${DATA_CONTROLLER_STORAGE_CLASS} --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
       fi
     fi
+    ## 30minutes
+    TIMEOUT=1800
+    ## 2 minutes
+    RETRY_INTERVAL=120
     while [ True ]
     do
+      if [ "$TIMEOUT" -le 0 ]; then
+        echo "time out at Data controller creation..." > ${results_dir}/error && { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      fi
       controller_status=$(kubectl get datacontroller -n ${NAMESPACE})
       if [[ $(echo $controller_status | grep "Ready") ]]
       then
         printf "\nController Ready\n"
         break
-      else
-        printf "\nWaiting for Data controller to get it Ready\n"
-        sleep 2m
       fi
+
+      sleep "$RETRY_INTERVAL"
+      TIMEOUT=$(($TIMEOUT-$RETRY_INTERVAL))
+      printf "\nWaiting for Data controller to get it Ready\n"
     done
   fi
   ##################
@@ -227,6 +264,11 @@ then
     sed -i 's|password: <your base64 encoded password>|'"password: $encoded_password"'|g' sqlmi.yaml
     sed -i 's|username: <your base64 encoded username>|'"username: $encoded_username"'|g' sqlmi.yaml
     sed -i 's|sql1|'${SQL_INSTANCE_NAME}'|g' sqlmi.yaml
+    sql_servicetype=$(more sqlmi.yaml | grep type: | awk NR==2 | awk -F':' '{print $2}' | xargs)
+    if [[ $sql_servicetype != ${SERVICE_TYPE}  ]]
+    then
+      sed -i 's|'"type: ${sql_servicetype}"'|'"type: ${SERVICE_TYPE}"'|g' sqlmi.yaml
+    fi
     if [[ ${SQL_MI_STORAGE_CLASS} == "" || ${SQL_MI_STORAGE_CLASS} == "default" ]]
     then
       sed -i 's|className: default|'"className: ${SQL_MI_STORAGE_CLASS}"'|g' sqlmi.yaml
@@ -243,17 +285,24 @@ then
         kubectl -n ${NAMESPACE} create -f sqlmi.yaml 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
       fi
     fi
+    ## 30minutes
+    TIMEOUT=1800
+    ## 2 minutes
+    RETRY_INTERVAL=120
     while [ True ]
     do
+      if [ "$TIMEOUT" -le 0 ]; then
+        echo "time out at SQLMI creation..." > ${results_dir}/error && { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      fi
       sql_status=$(kubectl get sqlmi -n ${NAMESPACE})
       if [[ $(echo $sql_status | grep "Ready") ]]
       then
-      printf "\nSQL Ready\n"
-      break
-      else
-        printf "\nWaiting for SQL server to get it Ready\n"
-        sleep 2m
+        printf "\nSQL Ready\n"
+        break
       fi
+      sleep "$RETRY_INTERVAL"
+      TIMEOUT=$(($TIMEOUT-$RETRY_INTERVAL))
+      printf "\nWaiting for SQL server to get it Ready\n"
     done
   fi
   ########################
@@ -270,6 +319,11 @@ then
     fi
     sed -i 's|password: <your base64 encoded password>|'"password: $encoded_password"'|g' postgresql.yaml
     sed -i 's|pg1|'${PSQL_SERVERGROUP_NAME}'|g' postgresql.yaml
+    pg_servicetype=$(more postgresql.yaml | grep type: | awk NR==2 | awk -F':' '{print $2}' | awk -F'#' '{print $1}' | xargs)
+    if [[ $pg_servicetype != ${SERVICE_TYPE}  ]]
+    then
+      sed -i 's|'"type: ${pg_servicetype}"'|'"type: ${SERVICE_TYPE}"'|g' postgresql.yaml
+    fi
     if [[ ${PSQL_STORAGE_CLASS} == "" || ${PSQL_STORAGE_CLASS} == "default" ]]
     then
       sed -i 's|className: default|'"className: ${PSQL_STORAGE_CLASS}"'|g' postgresql.yaml
@@ -286,17 +340,24 @@ then
         kubectl -n ${NAMESPACE} create -f postgresql.yaml 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
       fi
     fi
+    ## 30minutes
+    TIMEOUT=1800
+    ## 2 minutes
+    RETRY_INTERVAL=120
     while [ True ]
     do
+      if [ "$TIMEOUT" -le 0 ]; then
+        echo "time out at PostgresSQL creation..." > ${results_dir}/error && { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      fi
       psql_status=$(kubectl get postgresqls -n ${NAMESPACE})
       if [[ $(echo $psql_status | grep "Ready") ]]
       then
-      printf "\nPostgresSQL Ready\n"
-      break
-      else
-        printf "\nWaiting for PostgresSQL server to get it Ready\n"
-        sleep 2m
+        printf "\nPostgresSQL Ready\n"
+        break
       fi
+      sleep "$RETRY_INTERVAL"
+      TIMEOUT=$(($TIMEOUT-$RETRY_INTERVAL))
+      printf "\nWaiting for PostgresSQL server to get it Ready\n"
     done
   fi
 else
@@ -310,11 +371,12 @@ sleep 1m
 $azlogs_cmd
 ## Collecting and Displaying the resources version info
 printf "\n####################################################################################################################\n"
+printf "Azure arc data services validation date: $(date)\n"
 printf "\nKubernetes Version\n"
 kubectl version --short
-printf "\nAzure Arc Version\n"
+printf "\nAzure Arc data services Release Version\n"
 az arcdata dc config show --k8s-namespace ${NAMESPACE} --use-k8s | grep "imageTag" | awk 'NR==2' | awk -F':' '{print $2}' | awk -F',' '{print $1}'
-
+echo "Arcdata Extension version: $(az extension show -n arcdata 2> null | jq .version)"
 if [[ "${SQL_INSTANCE_NAME}" ]]
 then
   grep -rh "Microsoft (R) SQLServerAgent" /tmp/results | awk 'NR==1'

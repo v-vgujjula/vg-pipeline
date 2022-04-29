@@ -4,6 +4,7 @@ NAMESPACE=$1
 # Note: not all of these objects will exist in your environment depending on which version of the Arc data controller was installed
 # Custom resource definitions (CRD)
 kubectl delete crd activedirectoryconnectors.arcdata.microsoft.com --ignore-not-found
+kubectl delete crd failovergroups.sql.arcdata.microsoft.com --ignore-not-found
 kubectl delete crd kafkas.arcdata.microsoft.com --ignore-not-found
 kubectl delete crd datacontrollers.arcdata.microsoft.com --ignore-not-found
 kubectl delete crd postgresqls.arcdata.microsoft.com --ignore-not-found
@@ -17,10 +18,12 @@ kubectl delete clusterrole arcdataservices-extension --ignore-not-found
 kubectl delete clusterrole $NAMESPACE:cr-arc-metricsdc-reader --ignore-not-found
 kubectl delete clusterrole $NAMESPACE:cr-arc-dc-watch --ignore-not-found
 kubectl delete clusterrole cr-arc-webhook-job --ignore-not-found
+kubectl delete clusterrole $NAMESPACE:cr-upgrade-worker --ignore-not-found
 # Substitute the name of the namespace the data controller was deployed in into {namespace}.  If unsure, get the name of the mutatingwebhookconfiguration using 'kubectl get clusterrolebinding'
 kubectl delete clusterrolebinding $NAMESPACE:crb-arc-metricsdc-reader --ignore-not-found
 kubectl delete clusterrolebinding $NAMESPACE:crb-arc-dc-watch --ignore-not-found
 kubectl delete clusterrolebinding crb-arc-webhook-job --ignore-not-found
+kubectl delete clusterrolebinding $NAMESPACE:crb-upgrade-worker --ignore-not-found
 # API services
 # Up to May 2021 release
 kubectl delete apiservice v1alpha1.arcdata.microsoft.com --ignore-not-found

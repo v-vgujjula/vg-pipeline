@@ -9,9 +9,9 @@ from azure.identity import AzureCliCredential
 pytestmark = pytest.mark.dsarcagentstest
 
 def test_check_datacontroller_arm(env_dict):
-    namespace = env_dict.get('NAMESPACE')
+    namespace = env_dict.get('CUSTOM_LOCATION_NAME')
     if not namespace:
-        pytest.fail('ERROR: variable NAMESPACE is required.')
+        pytest.fail('ERROR: variable CUSTOM_LOCATION_NAME is required.')
     
     subscription_id = env_dict.get('SUBSCRIPTION_ID')
     if not subscription_id:
@@ -27,7 +27,7 @@ def test_check_datacontroller_arm(env_dict):
         pytest.fail("AzureCliCredentials failed : " + str(e))
     
     try:
-        resource_uri = '/subscriptions/{}/resourcegroups/{}/providers/Microsoft.AzureArcData/{}/{}'.format(subscription_id,resource_group,"dataControllers",namespace)
+        resource_uri = '/subscriptions/{}/resourcegroups/{}/providers/Microsoft.AzureArcData/{}/{}'.format(subscription_id,resource_group,"dataControllers","arc-ds-controller")
         resource_client = ResourceManagementClient(credential, subscription_id)
         shadow_resource = resource_client.resources.get_by_id(resource_uri,ds_connect_constants.DATA_CONTROLLER_API_VERSION)
         if shadow_resource.properties["provisioningState"] != "Succeeded":

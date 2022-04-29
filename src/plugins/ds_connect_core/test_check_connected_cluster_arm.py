@@ -9,9 +9,9 @@ from azure.identity import AzureCliCredential
 pytestmark = pytest.mark.dsarcagentstest
 
 def test_check_connected_cluster_arm(env_dict):
-    namespace = env_dict.get('NAMESPACE')
+    namespace = env_dict.get('CUSTOM_LOCATION_NAME')
     if not namespace:
-        pytest.fail('ERROR: variable NAMESPACE is required.')
+        pytest.fail('ERROR: variable CUSTOM_LOCATION_NAME is required.')
     
     subscription_id = env_dict.get('SUBSCRIPTION_ID')
     if not subscription_id:

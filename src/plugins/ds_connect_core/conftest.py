@@ -22,9 +22,10 @@ def env_dict():
             # Collecting DS environment variables.
             env_dict['NUM_TESTS_COMPLETED'] = 0
             env_dict['CONNECTIVITY_MODE'] = os.getenv('CONNECTIVITY_MODE')
+            env_dict['SERVICE_TYPE'] = os.getenv('SERVICE_TYPE')
             env_dict['CLUSTER_NAME'] = os.getenv('CLUSTER_NAME')
             env_dict['LOCATION'] = os.getenv('LOCATION')
-            env_dict['NAMESPACE'] = os.getenv('NAMESPACE')
+            env_dict['CUSTOM_LOCATION_NAME'] = os.getenv('CUSTOM_LOCATION_NAME')
             env_dict['CONFIG_PROFILE'] = os.getenv('CONFIG_PROFILE')
             env_dict['DATA_CONTROLLER_STORAGE_CLASS'] = os.getenv('DATA_CONTROLLER_STORAGE_CLASS')
             env_dict['SQL_MI_STORAGE_CLASS'] = os.getenv('SQL_MI_STORAGE_CLASS')

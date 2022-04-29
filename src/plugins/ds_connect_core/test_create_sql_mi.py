@@ -6,9 +6,9 @@ pytestmark = pytest.mark.dsarcagentstest
 
 @pytest.mark.skipif(not os.getenv('SQL_INSTANCE_NAME'), reason="SQL_INSTANCE_NAME not found")
 def test_create_sql_mi(env_dict):
-    namespace = env_dict.get('NAMESPACE')
+    namespace = env_dict.get('CUSTOM_LOCATION_NAME')
     if not namespace:
-        pytest.fail('ERROR: variable NAMESPACE is required.')
+        pytest.fail('ERROR: variable CUSTOM_LOCATION_NAME is required.')
     
     if env_dict.get('SQL_INSTANCE_NAME'):
         sql_name = env_dict.get('SQL_INSTANCE_NAME')

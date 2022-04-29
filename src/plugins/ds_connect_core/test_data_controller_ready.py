@@ -6,9 +6,9 @@ from kubernetes import client, config
 pytestmark = pytest.mark.dsarcagentstest
 
 def test_data_controller_ready(env_dict):
-    namespace = env_dict.get('NAMESPACE')
+    namespace = env_dict.get('CUSTOM_LOCATION_NAME')
     if not namespace:
-        pytest.fail('ERROR: variable NAMESPACE is required.')
+        pytest.fail('ERROR: variable CUSTOM_LOCATION_NAME is required.')
     
     # Loading in-cluster kube-config
     try:
@@ -18,7 +18,7 @@ def test_data_controller_ready(env_dict):
 
     try:
         api_instance = client.CustomObjectsApi()
-        dc_status = api_instance.get_namespaced_custom_object_status(group="arcdata.microsoft.com", version="v1", plural="datacontrollers", namespace=namespace, name=namespace)
+        dc_status = api_instance.get_namespaced_custom_object_status(group="arcdata.microsoft.com", version="v1", plural="datacontrollers", namespace=namespace, name="arc-ds-controller")
         if dc_status['status']['state'] != 'Ready':
             pytest.fail('ERROR: Data controller readiness failed')
     except Exception as e:

@@ -1,5 +1,4 @@
-FROM ubuntu:18.04
-## python 3.6 installation
+FROM ubuntu:20.04
 RUN apt-get update \
   && apt-get install -y python3-pip python3-dev \
   && cd /usr/local/bin \
@@ -10,17 +9,20 @@ RUN apt-get update
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pytest pytest-xdist filelock junit_xml kubernetes azure.identity
 RUN pip install azure.mgmt.resource
 ## az arcdata installation
-RUN apt-get install gnupg ca-certificates curl wget tar jq software-properties-common apt-transport-https lsb-release -y
+RUN DEBIAN_FRONTEND="noninteractive" apt-get install gnupg ca-certificates curl wget jq software-properties-common apt-transport-https lsb-release -y
 RUN apt-get update
 RUN curl -sSL https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
-RUN apt-add-repository https://packages.microsoft.com/ubuntu/18.04/prod
+RUN apt-add-repository https://packages.microsoft.com/ubuntu/20.04/prod
 RUN apt-get update
 RUN curl -sL https://aka.ms/InstallAzureCLIDeb | bash
-RUN az extension add --name connectedk8s --yes --debug
-RUN az extension add --name k8s-configuration --yes --debug
-RUN az extension add --name k8s-extension --yes --debug
-RUN az extension add --name customlocation --yes --debug
-RUN az extension add --name arcdata --yes --debug
+#RUN az upgrade --yes
+## we are downgrading azure-cli to 2.35.0 
+RUN apt-get install azure-cli=2.35.0-1~focal -y
+RUN az extension add --upgrade --name connectedk8s --yes --debug
+RUN az extension add --upgrade --name k8s-configuration --yes --debug
+RUN az extension add --upgrade --name k8s-extension --yes --debug
+RUN az extension add --upgrade --name customlocation --yes --debug
+RUN az extension add --upgrade --name arcdata --yes --debug
 RUN apt-get update
 RUN /usr/bin/curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl \
     && chmod +x ./kubectl  \
@@ -31,9 +33,7 @@ RUN curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 |
 
 ARG SONOBUOY_VERSION
 RUN curl -L https://github.com/vmware-tanzu/sonobuoy/releases/download/v${SONOBUOY_VERSION}/sonobuoy_${SONOBUOY_VERSION}_linux_amd64.tar.gz --output /bin/sonobuoy.tar.gz
-RUN echo $(https://github.com/vmware-tanzu/sonobuoy/releases/download/v${SONOBUOY_VERSION}/sonobuoy_${SONOBUOY_VERSION}_linux_amd64.tar.gz)
-RUN echo $(ls -l /bin/sonobuoy.tar.gz)
-RUN echo $(file /bin/sonobuoy.tar.gz)
+
 RUN ["tar", "-xzf", "/bin/sonobuoy.tar.gz", "-C", "/bin/"]
 
 COPY ./ds_connect_core/arc_ds_connect_conformance.sh /
