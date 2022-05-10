@@ -13,18 +13,17 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     steps:
-    - task: Bash@3
+    - task: Docker@2
       condition: eq(variables['dataServices'], 'true')
       displayName: Build and Push ds indirect platform plugin
       inputs:
-        targetType: 'inline'
-        script: | 
-          echo $(sonobuoyVersion)
-          sudo curl -L https://github.com/vmware-tanzu/sonobuoy/releases/download/v$(sonobuoyVersion)/sonobuoy_$(sonobuoyVersion)_linux_amd64.tar.gz --output /bin/sonobuoy.tar.gz
-          ls /bin/sonobuoy.tar.gz
-          file /bin/sonobuoy.tar.gz
-          sudo tar -xzf /bin/sonobuoy.tar.gz -C /bin/
-          ls /bin/sonobuoy
+        containerRegistry: arcdscontainerregistry
+        repository: arcdscontainerregistry.azurecr.io/ds-pipeline-indirect
+        command: 'buildAndPush'
+        Dockerfile: 'src/plugins/ds_core/Dockerfile'
+        buildContext: 'src/plugins'
+        tags: $(dsplatformPluginImageVersion)
+        addPipelineData: false
     - task: Docker@2
       condition: eq(variables['dataServices'], 'true')
       displayName: Build ds-connect plugin
