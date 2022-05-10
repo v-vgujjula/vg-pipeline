@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/azure-cli:2.35.0
+FROM mcr.microsoft.com/azure-cli:latest
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pytest pytest-xdist filelock junit_xml kubernetes azure.identity
 RUN pip install azure.mgmt.resource
 RUN apk add gnupg ca-certificates curl wget jq

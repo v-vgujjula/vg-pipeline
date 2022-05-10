@@ -183,7 +183,8 @@ then
   ## Polling on the azure-arc-platform plugin status.
   ##################################################
   ## testing variable sonobuoy_namespace_present = "false" remove this below at final version
-  ##sonobuoy_namespace_present="false"
+  ## VG
+  #sonobuoy_namespace_present="false"
   if [[ $sonobuoy_namespace_present == "true" ]]
   then
     ## 60minutes
@@ -216,7 +217,7 @@ then
       # Checking exit condition
       if [[ $status_check_complete == "true" ]]
       then
-        sleep 3m ## let connected cluster get ready
+        sleep 2m ## let connected cluster get ready
         break
       fi
       # Checking cleanup timeout need to add
@@ -227,19 +228,18 @@ then
       printf "\nPolling on the azure-arc-platform plugin status.\n"
     done
   fi
-
   echo "Checking connected cluster availability"
-  arc_connected_cluster=$(az connectedk8s list  -g ${RESOURCE_GROUP} -o tsv -o json | jq .[].name | grep $CLUSTER_NAME* | xargs)
+  arc_connected_cluster=$(az connectedk8s list  -g ${RESOURCE_GROUP} -o tsv -o json | jq .[].name | grep $CLUSTER_NAME | xargs)
   if [[ -z "${arc_connected_cluster}" ]]; then
-    echo "ERROR: Connected cluster is required." > ${results_dir}/error && python3 ds_setup_failure_handler.py
+    echo "ERROR: Connected cluster is required. Please enable azure-arc-platform plugin at properties fils as azure-arc-platform.enable=true " > ${results_dir}/error && python3 ds_setup_failure_handler.py
   fi
   echo "Checking connected cluster status"
-  connected_cluster_status=$(az connectedk8s show -g ${RESOURCE_GROUP} -n ${arc_connected_cluster} --query connectivityStatus 2> ${results_dir}/error || python3 ds_setup_failure_handler.py)
+  connected_cluster_status=$(az connectedk8s show -g ${RESOURCE_GROUP} -n ${CLUSTER_NAME} --query connectivityStatus 2> ${results_dir}/error || python3 ds_setup_failure_handler.py)
   if [[ $connected_cluster_status && $(echo $connected_cluster_status | xargs) != "Connected" ]]; then
     echo "ERROR: given cluster is not connected." > ${results_dir}/error && python3 ds_setup_failure_handler.py
   fi
   ## Read this variable at python
-  export CONNECTED_CLUSTER_NAME=${arc_connected_cluster}
+  export CONNECTED_CLUSTER_NAME=${CLUSTER_NAME}
   if [[ -z $(kubectl get ns) ]]
   then
     echo "Please check the Kubernetes cluster configuration, Not found initial namespaces  " > ${results_dir}/error && python3 ds_setup_failure_handler.py
@@ -367,6 +367,12 @@ then
     echo "You have not choosen to create SQL server"
     skip_test_count=$((skip_test_count+1))
   else
+    ## Checking for SQLMI is already exist or not.
+    pre_sql_status=$(kubectl get sqlmi -n ${CUSTOM_LOCATION_NAME} --ignore-not-found)
+    if [[ $(echo $pre_sql_status | grep "Ready") ]]
+    then
+      echo "SQLMI is already exist with specified name : ${SQL_INSTANCE_NAME}" > ${results_dir}/error && { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+    fi
     if [[ ${SQL_MI_STORAGE_CLASS} == "" || ${SQL_MI_STORAGE_CLASS} == "default" ]]
     then
       az sql mi-arc create --name ${SQL_INSTANCE_NAME} --resource-group ${RESOURCE_GROUP} --location ${LOCATION}  --custom-location ${CUSTOM_LOCATION_NAME} --subscription ${SUBSCRIPTION_ID} --storage-class-data "default" --storage-class-datalogs "default" --storage-class-logs "default" --dev 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
@@ -450,5 +456,6 @@ then
 fi
 
 export NUM_TESTS="$NUM_PROCESS"
-#sleep 6000m
+## VG
+#sleep 6000m ##
 pytest /conformancetests/ --junitxml=/tmp/results/results.xml -d --tx "$NUM_PROCESS"*popen -k "$TEST_NAME_LIST" -m "$TEST_MARKER_LIST"

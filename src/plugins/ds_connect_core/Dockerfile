@@ -9,15 +9,14 @@ RUN apt-get update
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pytest pytest-xdist filelock junit_xml kubernetes azure.identity
 RUN pip install azure.mgmt.resource
 ## az arcdata installation
+RUN apt-get update
 RUN DEBIAN_FRONTEND="noninteractive" apt-get install gnupg ca-certificates curl wget jq software-properties-common apt-transport-https lsb-release -y
 RUN apt-get update
 RUN curl -sSL https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
 RUN apt-add-repository https://packages.microsoft.com/ubuntu/20.04/prod
 RUN apt-get update
 RUN curl -sL https://aka.ms/InstallAzureCLIDeb | bash
-#RUN az upgrade --yes
-## we are downgrading azure-cli to 2.35.0 
-RUN apt-get install azure-cli=2.35.0-1~focal -y --allow-downgrades
+RUN az upgrade --yes
 RUN az extension add --upgrade --name connectedk8s --yes --debug
 RUN az extension add --upgrade --name k8s-configuration --yes --debug
 RUN az extension add --upgrade --name k8s-extension --yes --debug
