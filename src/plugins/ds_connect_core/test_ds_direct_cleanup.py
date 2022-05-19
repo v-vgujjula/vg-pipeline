@@ -47,8 +47,7 @@ def test_ds_direct_cleanup(env_dict):
                     process = subprocess.Popen(['az','sql', 'mi-arc', 'delete' , '-g', resource_group, '-n', env_dict.get('SQL_INSTANCE_NAME')], stdout=subprocess.PIPE)
                     out, err = process.communicate()
                     break
-                    #resource_client.resources.begin_delete_by_id(resource.id, ds_connect_constants.SQL_MI_API_VERSION)
-
+                    
             sqlmi_status = False
             timeout_interval=0
             while True:
@@ -106,9 +105,14 @@ def test_ds_direct_cleanup(env_dict):
         print(resource_uri)
         shadow_resource = resource_client.resources.get_by_id(resource_uri,ds_connect_constants.CONNECTED_CLUSTER_EXTENSION_API_VERSION)
         if shadow_resource and shadow_resource.name == os.environ['K8S_EXTN_NAME']:
-            print("if condition passed")
             time.sleep(sleep_time)
             resource_client.resources.begin_delete_by_id(shadow_resource.id,ds_connect_constants.CONNECTED_CLUSTER_EXTENSION_API_VERSION)
+        ## Delete log analytics workspace
+        try:
+            process = subprocess.Popen(['az','monitor', 'log-analytics', 'workspace', 'delete', '-g', resource_group, '--workspace-name', namespace, '--force', 'true', '--yes' ], stdout=subprocess.PIPE)
+            out, err = process.communicate()
+        except Exception as e:
+            pytest.fail("Error at Deleting log analytics workspace: " + str(e))
         ## Delete namespace
         try:
             config.load_incluster_config()

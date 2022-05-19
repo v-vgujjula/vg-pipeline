@@ -30,7 +30,7 @@ def test_check_kubernetes_extension_arm(env_dict):
         resource_uri = '/subscriptions/{}/resourcegroups/{}/providers/Microsoft.Kubernetes/connectedClusters/{}/providers/Microsoft.KubernetesConfiguration/{}/{}'.format(subscription_id,resource_group,os.environ['CONNECTED_CLUSTER_NAME'],"extensions",os.environ['K8S_EXTN_NAME'])
         resource_client = ResourceManagementClient(credential, subscription_id)
         shadow_resource = resource_client.resources.get_by_id(resource_uri,ds_connect_constants.CONNECTED_CLUSTER_EXTENSION_API_VERSION)
-        if shadow_resource.properties["installState"] != "Installed":
+        if shadow_resource.properties["provisioningState"] != "Succeeded":
             pytest.fail('ERROR: Connected cluster kubernetes extension status.')
     except Exception as e:
         pytest.fail("Connected cluster kubernetes extension status : " + str(e))

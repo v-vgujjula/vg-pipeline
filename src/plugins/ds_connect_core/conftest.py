@@ -32,6 +32,7 @@ def env_dict():
             env_dict['PSQL_STORAGE_CLASS'] = os.getenv('PSQL_STORAGE_CLASS')
             env_dict['AZDATA_USERNAME'] = os.getenv('AZDATA_USERNAME')
             env_dict['AZDATA_PASSWORD'] = os.getenv('AZDATA_PASSWORD')
+            env_dict['MEMORY'] = os.getenv('MEMORY')
             env_dict['SQL_INSTANCE_NAME'] = os.getenv('SQL_INSTANCE_NAME')
             env_dict['PSQL_SERVERGROUP_NAME'] = os.getenv('PSQL_SERVERGROUP_NAME')
             env_dict['TENANT_ID'] = os.getenv('TENANT_ID')

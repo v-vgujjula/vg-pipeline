@@ -32,6 +32,16 @@ if [[ -z "${CUSTOM_LOCATION_NAME}" ]]; then
   python3 ds_setup_failure_handler.py
 fi
 
+if [[ -z "${MEMORY}" ]]; then
+  echo "ERROR: parameter MEMORY is required." > ${results_dir}/error
+  python3 ds_setup_failure_handler.py
+fi
+
+if [[ ${MEMORY} == "" ]] || [[ ${MEMORY} == " " ]]; then
+  echo "ERROR: parameter MEMORY is required with values." > ${results_dir}/error
+  python3 ds_setup_failure_handler.py
+fi
+
 if [[ -z "${SERVICE_TYPE}" ]]; then
   echo "ERROR: parameter SERVICE_TYPE is required." > ${results_dir}/error
   python3 ds_setup_failure_handler.py
@@ -180,11 +190,18 @@ then
     sonobuoy_namespace_present="true"
   fi
   ##################################################
-  ## Polling on the azure-arc-platform plugin status.
+  #### Deployment 'arc-ds-controller' cleanup
   ##################################################
+  echo "Deployment cleanup initiated..."
+  if [[ $(az deployment group list -g ${RESOURCE_GROUP} | jq .[].name | grep "arc-ds-controller" | xargs) ]]
+  then 
+    az deployment group delete -g ${RESOURCE_GROUP} -n "arc-ds-controller" 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
+  fi
+  ###################################################
+  ## Polling on the azure-arc-platform plugin status.
+  ###################################################
   ## testing variable sonobuoy_namespace_present = "false" remove this below at final version
-  ## VG
-  #sonobuoy_namespace_present="false"
+  #sonobuoy_namespace_present="false" ## VG
   if [[ $sonobuoy_namespace_present == "true" ]]
   then
     ## 60minutes
@@ -251,6 +268,93 @@ then
       echo "Namespace : ${CUSTOM_LOCATION_NAME}  already exists. Please specify a different name." > ${results_dir}/error && python3 ds_setup_failure_handler.py
     fi
   done
+###################################
+## Log analytics workspace creation
+###################################
+  echo "Log analytics workspace initiated"
+  WORKSPACE_ID=$(az monitor log-analytics workspace create -g $RESOURCE_GROUP -n $CUSTOM_LOCATION_NAME -l $LOCATION | jq .customerId | xargs)
+  if [ -z "$WORKSPACE_ID" ]
+  then
+    echo "Unable to create log-analytics workspace ." > ${results_dir}/error
+    python3 ds_setup_failure_handler.py
+  fi
+  export WORKSPACE_ID
+  WORKSPACE_SHARED_KEY=$(az monitor log-analytics workspace get-shared-keys --resource-group $RESOURCE_GROUP --workspace-name $CUSTOM_LOCATION_NAME | jq .primarySharedKey | xargs)
+  if [ -z "$WORKSPACE_SHARED_KEY" ]
+  then
+    echo "Unable to get primary key from log-analytics workspace" > ${results_dir}/error
+    python3 ds_setup_failure_handler.py
+  fi
+  export WORKSPACE_SHARED_KEY
+###########################
+## create k8s extension
+###########################
+  if [[ -z $(kubectl get ns) ]]
+  then
+    echo "Please check the Kubernetes cluster configuration, Not found initial namespaces  " > ${results_dir}/error && python3 ds_setup_failure_handler.py
+  fi
+  for each_namespace in $(kubectl get ns)
+  do
+    if [ $each_namespace == ${CUSTOM_LOCATION_NAME} ]
+    then
+      echo "Namespace : ${CUSTOM_LOCATION_NAME}  already exists. Please specify a different name." > ${results_dir}/error && python3 ds_setup_failure_handler.py
+    fi
+  done
+  echo "k8s extension initiated"
+  K8S_EXTN_NAME=${CUSTOM_LOCATION_NAME}"-ext"
+  az k8s-extension create -c ${CLUSTER_NAME} -g ${RESOURCE_GROUP} --name ${K8S_EXTN_NAME} \
+    --cluster-type connectedClusters --extension-type microsoft.arcdataservices --auto-upgrade false \
+    --scope cluster --release-namespace ${CUSTOM_LOCATION_NAME} --config Microsoft.CustomLocation.ServiceAccount=sa-bootstrapper 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
+  while [ $(az k8s-extension show --name ${K8S_EXTN_NAME} --cluster-type connectedClusters -c ${CLUSTER_NAME} -g ${RESOURCE_GROUP} --query provisioningState | xargs) != "Succeeded" ]
+  do
+    echo "k8s extension status check"
+    sleep 2m
+  done
+  export K8S_EXTN_NAME
+#################################
+## create role assigments for MSI
+#################################
+  echo "role assigments for MSI initiated"
+  RESPONSE=$(az k8s-extension show --resource-group ${RESOURCE_GROUP} --cluster-name ${CLUSTER_NAME} --cluster-type connectedClusters --name ${K8S_EXTN_NAME})
+  MSI_OBJECT_ID=$(az k8s-extension show --resource-group ${RESOURCE_GROUP}  --cluster-name ${CLUSTER_NAME} --cluster-type connectedClusters --name ${K8S_EXTN_NAME} | jq .identity.principalId | xargs)
+  
+  #az role assignment create --assignee ${MSI_OBJECT_ID} --role "Contributor" --scope "/subscriptions/${subscription}/resourceGroups/${RESOURCE_GROUP}"
+  #az role assignment create --assignee ${MSI_OBJECT_ID} --role "Monitoring Metrics Publisher" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
+
+  az role assignment create --assignee-principal-type "ServicePrincipal" --assignee-object-id ${MSI_OBJECT_ID} --role "Contributor" --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP"
+  az role assignment create --assignee-principal-type "ServicePrincipal" --assignee-object-id ${MSI_OBJECT_ID} --role 'Monitoring Metrics Publisher' --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP"
+  if [ $? -ne 0 ]
+  then
+      echo "Role assigment for MSI failed. k8s-extension: $RESPONSE objectId: $MSI_OBJECT_ID" > ${results_dir}/error
+  fi
+  connectedClusterId=$(az connectedk8s show -n ${CLUSTER_NAME} -g ${RESOURCE_GROUP}  --query id -o tsv)
+  extensionId=$(az k8s-extension show --name ${K8S_EXTN_NAME} --cluster-type connectedClusters -c ${CLUSTER_NAME} -g ${RESOURCE_GROUP} --query id -o tsv)
+  sleep 1m
+#################################
+## create custom location
+#################################
+  echo "Custom location initiated"
+  az customlocation create -n ${CUSTOM_LOCATION_NAME} -g ${RESOURCE_GROUP} --namespace ${CUSTOM_LOCATION_NAME} \
+    --host-resource-id $connectedClusterId --cluster-extension-ids $extensionId --location ${LOCATION} 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
+  sleep 1m
+  ## validation custom location with requested namespace
+  c_locations=$(az customlocation list -g ${RESOURCE_GROUP} | jq .[].name | xargs)
+  if [[ ! $(echo $c_locations | grep -w ${CUSTOM_LOCATION_NAME}) ]]
+  then
+    echo "ERROR: CUSTOM_LOCATION is not found at specfied Resource Group for Direct connect mode." > ${results_dir}/error
+    python3 ds_setup_failure_handler.py
+  fi
+  cl_namespace=$(az customlocation show -n ${CUSTOM_LOCATION_NAME} -g ${RESOURCE_GROUP} | jq .namespace | xargs)
+  if [[ ! $(kubectl get ns ${cl_namespace}) ]]
+  then
+    echo "ERROR: CUSTOM_LOCATION namespace is not found at cluster." > ${results_dir}/error
+    python3 ds_setup_failure_handler.py
+  fi
+  if [[ $cl_namespace != ${CUSTOM_LOCATION_NAME}  ]]
+  then
+    echo "ERROR: CUSTOM_LOCATION namespace is not matching with the provided namespace from cluster." > ${results_dir}/error
+    python3 ds_setup_failure_handler.py
+  fi
 ###########################
 ## Data controller creation
 ###########################
@@ -275,7 +379,8 @@ then
     then
       echo "service type mismatch with arc ds config profile" > ${results_dir}/error && { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
     fi
-    az arcdata dc create --name "arc-ds-controller" --path "/tmp" --connectivity-mode "direct" --cluster-name ${arc_connected_cluster} --infrastructure ${INFRASTRUCTURE} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+    #az arcdata dc create --name "arc-ds-controller" --path "/tmp" --connectivity-mode "direct" --cluster-name ${arc_connected_cluster} --infrastructure ${INFRASTRUCTURE} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+    az arcdata dc create --name "arc-ds-controller" --path "/tmp" --connectivity-mode "direct" --cluster-name ${CLUSTER_NAME} --infrastructure ${INFRASTRUCTURE} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} --auto-upload-logs true --auto-upload-metrics true  2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
     ## 30minutes
     TIMEOUT=1800
     ## 2 minutes
@@ -295,14 +400,14 @@ then
       TIMEOUT=$(($TIMEOUT-$RETRY_INTERVAL))
       printf "\nWaiting for Data controller to get it Ready\n"
     done
-    export K8S_EXTN_NAME=${CUSTOM_LOCATION_NAME}"-ext"
   else
     if [[ ${DATA_CONTROLLER_STORAGE_CLASS} == "" || ${DATA_CONTROLLER_STORAGE_CLASS} == "default" ]]
     then
       az arcdata dc config init -s ${CONFIG_PROFILE} -p .
       sed -i 's/\"className\":.*/\"className\": '"\"${DATA_CONTROLLER_STORAGE_CLASS}\"",'/g' "control.json"
       sed -i 's/\"serviceType\":.*/\"serviceType\": '"\"${SERVICE_TYPE}\"",'/g' "control.json"
-      az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${arc_connected_cluster} --infrastructure ${INFRASTRUCTURE} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      #az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${arc_connected_cluster} --infrastructure ${INFRASTRUCTURE} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${CLUSTER_NAME} --infrastructure ${INFRASTRUCTURE} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} --auto-upload-logs true --auto-upload-metrics true  2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
       ## 30minutes
       TIMEOUT=1800
       ## 2 minutes
@@ -334,7 +439,8 @@ then
         az arcdata dc config init -s ${CONFIG_PROFILE} -p .
         sed -i 's/\"serviceType\":.*/\"serviceType\": '"\"${SERVICE_TYPE}\"",'/g' "control.json"
         sed -i 's/\"className\":.*/\"className\": '"\"${DATA_CONTROLLER_STORAGE_CLASS}\"",'/g' "control.json"
-        az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${arc_connected_cluster} --infrastructure ${INFRASTRUCTURE} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+        #az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${arc_connected_cluster} --infrastructure ${INFRASTRUCTURE} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+        az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${CLUSTER_NAME} --infrastructure ${INFRASTRUCTURE} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} --auto-upload-logs true --auto-upload-metrics true  2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
       fi
       ## 30minutes
       TIMEOUT=1800
@@ -375,7 +481,8 @@ then
     fi
     if [[ ${SQL_MI_STORAGE_CLASS} == "" || ${SQL_MI_STORAGE_CLASS} == "default" ]]
     then
-      az sql mi-arc create --name ${SQL_INSTANCE_NAME} --resource-group ${RESOURCE_GROUP} --location ${LOCATION}  --custom-location ${CUSTOM_LOCATION_NAME} --subscription ${SUBSCRIPTION_ID} --storage-class-data "default" --storage-class-datalogs "default" --storage-class-logs "default" --dev 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      #az sql mi-arc create --name ${SQL_INSTANCE_NAME} --resource-group ${RESOURCE_GROUP} --location ${LOCATION}  --custom-location ${CUSTOM_LOCATION_NAME} --subscription ${SUBSCRIPTION_ID} --storage-class-data "default" --storage-class-datalogs "default" --storage-class-logs "default" --dev 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      az sql mi-arc create --name ${SQL_INSTANCE_NAME} --resource-group ${RESOURCE_GROUP} --location ${LOCATION} --custom-location ${CUSTOM_LOCATION_NAME} --storage-class-data "default" --storage-class-datalogs "default" --storage-class-logs "default" --memory-request ${MEMORY}  --memory-limit ${MEMORY} --dev 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
     else
       sc_info=$(kubectl get sc)
       echo $sc_info
@@ -384,7 +491,8 @@ then
       then
         echo "Storage class : ${SQL_MI_STORAGE_CLASS}  not exists. Please specify a valid name." > ${results_dir}/error && { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
       else
-        az sql mi-arc create --name ${SQL_INSTANCE_NAME} --resource-group ${RESOURCE_GROUP} --location ${LOCATION}  --custom-location ${CUSTOM_LOCATION_NAME} --subscription ${SUBSCRIPTION_ID} --storage-class-data ${SQL_MI_STORAGE_CLASS} --storage-class-datalogs ${SQL_MI_STORAGE_CLASS} --storage-class-logs ${SQL_MI_STORAGE_CLASS} --dev 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+        #az sql mi-arc create --name ${SQL_INSTANCE_NAME} --resource-group ${RESOURCE_GROUP} --location ${LOCATION}  --custom-location ${CUSTOM_LOCATION_NAME} --subscription ${SUBSCRIPTION_ID} --storage-class-data ${SQL_MI_STORAGE_CLASS} --storage-class-datalogs ${SQL_MI_STORAGE_CLASS} --storage-class-logs ${SQL_MI_STORAGE_CLASS} --dev 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+        az sql mi-arc create --name ${SQL_INSTANCE_NAME} --resource-group ${RESOURCE_GROUP} --location ${LOCATION} --custom-location ${CUSTOM_LOCATION_NAME} --storage-class-data ${SQL_MI_STORAGE_CLASS} --storage-class-datalogs ${SQL_MI_STORAGE_CLASS} --storage-class-logs ${SQL_MI_STORAGE_CLASS} --memory-request ${MEMORY}  --memory-limit ${MEMORY} --dev 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
       fi
     fi
     ## 30minutes

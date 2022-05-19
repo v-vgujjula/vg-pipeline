@@ -30,6 +30,15 @@ if [[ -z "${NAMESPACE}" ]]; then
   echo "ERROR: parameter NAMESPACE is required." > ${results_dir}/error
   python3 ds_setup_failure_handler.py
 fi
+if [[ -z "${MEMORY}" ]]; then
+  echo "ERROR: parameter MEMORY is required." > ${results_dir}/error
+  python3 ds_setup_failure_handler.py
+fi
+
+if [[ ${MEMORY} == "" ]] || [[ ${MEMORY} == " " ]]; then
+  echo "ERROR: parameter MEMORY is required with values." > ${results_dir}/error
+  python3 ds_setup_failure_handler.py
+fi
 
 if [[ -z "${SERVICE_TYPE}" ]]; then
   echo "ERROR: parameter SERVICE_TYPE is required." > ${results_dir}/error
@@ -265,6 +274,8 @@ then
     sed -i 's|username: <your base64 encoded username>|'"username: $encoded_username"'|g' sqlmi.yaml
     sed -i 's|sql1|'${SQL_INSTANCE_NAME}'|g' sqlmi.yaml
     sql_servicetype=$(more sqlmi.yaml | grep type: | awk NR==2 | awk -F':' '{print $2}' | xargs)
+    ## Updating memory
+    sed -i 's|memory:.*|'"memory: ${MEMORY}"'|g' sqlmi.yaml
     if [[ $sql_servicetype != ${SERVICE_TYPE}  ]]
     then
       sed -i 's|'"type: ${sql_servicetype}"'|'"type: ${SERVICE_TYPE}"'|g' sqlmi.yaml
@@ -320,6 +331,8 @@ then
     sed -i 's|password: <your base64 encoded password>|'"password: $encoded_password"'|g' postgresql.yaml
     sed -i 's|pg1|'${PSQL_SERVERGROUP_NAME}'|g' postgresql.yaml
     pg_servicetype=$(more postgresql.yaml | grep type: | awk NR==2 | awk -F':' '{print $2}' | awk -F'#' '{print $1}' | xargs)
+    ## Updating memory
+    sed -i 's|memory:.*|'"memory: ${MEMORY}"'|g' postgresql.yaml
     if [[ $pg_servicetype != ${SERVICE_TYPE}  ]]
     then
       sed -i 's|'"type: ${pg_servicetype}"'|'"type: ${SERVICE_TYPE}"'|g' postgresql.yaml
