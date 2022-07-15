@@ -24,7 +24,7 @@ def test_check_pod_existence(env_dict):
         pytest.fail("Error loading the pod list: " + str(e))
         
     for pod in pod_list.items:
-        if not "arc-webhook-job-" in pod.metadata.generate_name:
+        if not "arc-bootstrap-job-" in pod.metadata.generate_name:
             pod_status_info = pod.status.phase
             print("each pod --> pod_status_info")
             if pod_status_info != "Running":

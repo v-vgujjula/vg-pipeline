@@ -18,6 +18,10 @@ saveResults() {
 # Ensure that we tell the Sonobuoy worker we are done regardless of results.
 trap saveResults EXIT
 ## DS onboarding
+echo "Onboarding Data services"
+echo "Upgrading azure cli"
+pip install --upgrade azure-cli
+#az upgrade --yes
 echo "Upgrading Extensions"
 az extension add --upgrade --name arcdata --yes 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
 az extension add --upgrade --name k8s-configuration --yes 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
@@ -25,6 +29,19 @@ az extension add --upgrade --name k8s-extension --yes 2> ${results_dir}/error ||
 az extension add --upgrade --name customlocation --yes 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
 az extension add --upgrade --name connectedk8s --yes 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
 az -v
+##
+echo "Checking release type request"
+if [[ ! ${RELEASE_TYPE} ]]; then
+  RELEASE_TYPE="PROD"
+  echo $RELEASE_TYPE
+else
+  echo $RELEASE_TYPE
+  if [[ ! ${REPOSITORY} ]] || [[ ! ${IMAGE_TAG} ]]; then
+    echo "ERROR: parameter REPOSITORY or IMAGE_TAG are missing." > ${results_dir}/error
+    python3 ds_setup_failure_handler.py
+  fi
+fi
+##
 echo "Onboarding DS indirect services"
 if [[ -z "${NAMESPACE}" ]]; then
   echo "ERROR: parameter NAMESPACE is required." > ${results_dir}/error
@@ -198,7 +215,16 @@ then
     then
       echo "service type mismatch with arc ds config profile" > ${results_dir}/error && { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
     fi
-    az arcdata dc create --name ${NAMESPACE} --path "/tmp" --k8s-namespace ${NAMESPACE} --use-k8s --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+    if [[ ${RELEASE_TYPE} != "PROD" ]]
+    then
+      printf "\nData controller creation initiated for PRE-RELEASE version\n"
+      sed -i 's+\"repository\":.*+\"repository\": '"\"${REPOSITORY}\"",'+g' "/tmp/control.json"
+      sed -i 's/\"imageTag\":.*/\"imageTag\": '"\"${IMAGE_TAG}\"",'/g' "/tmp/control.json"
+      az arcdata dc create --name ${NAMESPACE} --path "/tmp" --k8s-namespace ${NAMESPACE} --use-k8s --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+    else
+      printf "\nData controller creation initiated for PROD version\n"
+      az arcdata dc create --name ${NAMESPACE} --path "/tmp" --k8s-namespace ${NAMESPACE} --use-k8s --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+    fi
     ## 30minutes
     TIMEOUT=1800
     ## 2 minutes
@@ -223,7 +249,16 @@ then
     then
       az arcdata dc config init -s ${CONFIG_PROFILE} -p .
       sed -i 's/\"serviceType\":.*/\"serviceType\": '"\"${SERVICE_TYPE}\"",'/g' "control.json"
-      az arcdata dc create --name ${NAMESPACE} --path . --k8s-namespace ${NAMESPACE} --use-k8s --storage-class "default" --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      if [[ ${RELEASE_TYPE} != "PROD" ]]
+      then 
+        printf "\nData controller creation initiated for PRE-RELEASE version\n"
+        sed -i 's+\"repository\":.*+\"repository\": '"\"${REPOSITORY}\"",'+g' "control.json"
+        sed -i 's/\"imageTag\":.*/\"imageTag\": '"\"${IMAGE_TAG}\"",'/g' "control.json"
+        az arcdata dc create --name ${NAMESPACE} --path . --k8s-namespace ${NAMESPACE} --use-k8s --storage-class "default" --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      else
+        printf "\nData controller creation initiated for PROD version\n"
+        az arcdata dc create --name ${NAMESPACE} --path . --k8s-namespace ${NAMESPACE} --use-k8s --storage-class "default" --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      fi
     else
       sc_info=$(kubectl get sc)
       echo $sc_info
@@ -234,7 +269,16 @@ then
       else
         az arcdata dc config init -s ${CONFIG_PROFILE} -p .
         sed -i 's/\"serviceType\":.*/\"serviceType\": '"\"${SERVICE_TYPE}\"",'/g' "control.json"
-        az arcdata dc create --name ${NAMESPACE} --path . --k8s-namespace ${NAMESPACE} --use-k8s --storage-class ${DATA_CONTROLLER_STORAGE_CLASS} --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+        if [[ ${RELEASE_TYPE} != "PROD" ]]
+        then
+          sed -i 's+\"repository\":.*+\"repository\": '"\"${REPOSITORY}\"",'+g' "control.json"
+          sed -i 's/\"imageTag\":.*/\"imageTag\": '"\"${IMAGE_TAG}\"",'/g' "control.json"
+          printf "\nData controller creation initiated for PRE-RELEASE version\n"
+          az arcdata dc create --name ${NAMESPACE} --path . --k8s-namespace ${NAMESPACE} --use-k8s --storage-class ${DATA_CONTROLLER_STORAGE_CLASS} --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+        else
+          printf "\nData controller creation initiated for PROD version\n"
+          az arcdata dc create --name ${NAMESPACE} --path . --k8s-namespace ${NAMESPACE} --use-k8s --storage-class ${DATA_CONTROLLER_STORAGE_CLASS} --connectivity-mode indirect --infrastructure ${INFRASTRUCTURE} --location ${LOCATION} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+        fi
       fi
     fi
     ## 30minutes

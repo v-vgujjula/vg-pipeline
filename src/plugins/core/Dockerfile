@@ -1,6 +1,6 @@
-FROM mcr.microsoft.com/azure-cli:2.29.0
+FROM mcr.microsoft.com/azure-cli:2.36.0
 
-RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pytest pytest-xdist filelock junit_xml kubernetes==11.0.0 azure.identity msrestazure azure-mgmt-hybridkubernetes azure-mgmt-kubernetesconfiguration==1.0.0b1
+RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pytest pytest-xdist filelock junit_xml kubernetes==11.0.0 azure.identity msrestazure azure-mgmt-hybridkubernetes azure-mgmt-kubernetesconfiguration==2.0.0
 
 RUN az extension add --name connectedk8s --yes --debug
 

@@ -17,6 +17,8 @@ saveResults() {
 
 # Ensure that we tell the Sonobuoy worker we are done regardless of results.
 trap saveResults EXIT
+echo "Upgrading azure cli"
+pip install --upgrade azure-cli
 echo "Upgrading Extensions"
 az extension add --upgrade --name arcdata --yes 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
 az extension add --upgrade --name k8s-configuration --yes 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
@@ -24,6 +26,18 @@ az extension add --upgrade --name k8s-extension --yes 2> ${results_dir}/error ||
 az extension add --upgrade --name customlocation --yes 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
 az extension add --upgrade --name connectedk8s --yes 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
 az -v
+##
+echo "Checking release type request"
+if [[ ! ${RELEASE_TYPE} ]]; then
+  RELEASE_TYPE="PROD"
+  echo $RELEASE_TYPE
+else
+  echo $RELEASE_TYPE
+  if [[ ! ${REPOSITORY} ]] || [[ ! ${IMAGE_TAG} ]] || [[ ! ${DS_EXTN_VER_TAG} ]] || [[ ! ${DS_EXTN_REL_TRAIN} ]]; then
+    echo "ERROR: parameter REPOSITORY or IMAGE_TAG or DS_EXTN_VER_TAG or DS_EXTN_REL_TRAIN are missing." > ${results_dir}/error
+    python3 ds_setup_failure_handler.py
+  fi
+fi
 ## DS direct services onboarding
 echo "Onboarding DS direct services"
 
@@ -302,9 +316,20 @@ then
   done
   echo "k8s extension initiated"
   K8S_EXTN_NAME=${CUSTOM_LOCATION_NAME}"-ext"
-  az k8s-extension create -c ${CLUSTER_NAME} -g ${RESOURCE_GROUP} --name ${K8S_EXTN_NAME} \
-    --cluster-type connectedClusters --extension-type microsoft.arcdataservices --auto-upgrade false \
-    --scope cluster --release-namespace ${CUSTOM_LOCATION_NAME} --config Microsoft.CustomLocation.ServiceAccount=sa-bootstrapper 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
+  if [[ ${RELEASE_TYPE} != "PROD" ]]
+    then
+      printf "\nk8s extension initiated for PRE-RELEASE version\n"
+      az k8s-extension create -c ${CLUSTER_NAME} -g ${RESOURCE_GROUP} --name ${K8S_EXTN_NAME} \
+        --cluster-type connectedClusters --extension-type microsoft.arcdataservices --auto-upgrade false \
+        --version ${DS_EXTN_VER_TAG} --release-train ${DS_EXTN_REL_TRAIN} --config systemDefaultValues.image="mcr.microsoft.com/$REPOSITORY/arc-bootstrapper:$IMAGE_TAG" \
+        --scope cluster --release-namespace ${CUSTOM_LOCATION_NAME} --config Microsoft.CustomLocation.ServiceAccount=sa-bootstrapper 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
+    else
+      printf "\nk8s extension initiated for PROD version\n"
+      az k8s-extension create -c ${CLUSTER_NAME} -g ${RESOURCE_GROUP} --name ${K8S_EXTN_NAME} \
+        --cluster-type connectedClusters --extension-type microsoft.arcdataservices --auto-upgrade false \
+        --scope cluster --release-namespace ${CUSTOM_LOCATION_NAME} --config Microsoft.CustomLocation.ServiceAccount=sa-bootstrapper 2> ${results_dir}/error || python3 ds_setup_failure_handler.py
+  fi
+  
   while [ $(az k8s-extension show --name ${K8S_EXTN_NAME} --cluster-type connectedClusters -c ${CLUSTER_NAME} -g ${RESOURCE_GROUP} --query provisioningState | xargs) != "Succeeded" ]
   do
     echo "k8s extension status check"
@@ -380,7 +405,16 @@ then
       echo "service type mismatch with arc ds config profile" > ${results_dir}/error && { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
     fi
     #az arcdata dc create --name "arc-ds-controller" --path "/tmp" --connectivity-mode "direct" --cluster-name ${arc_connected_cluster} --infrastructure ${INFRASTRUCTURE} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
-    az arcdata dc create --name "arc-ds-controller" --path "/tmp" --connectivity-mode "direct" --cluster-name ${CLUSTER_NAME} --infrastructure ${INFRASTRUCTURE} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} --auto-upload-logs true --auto-upload-metrics true  2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+    if [[ ${RELEASE_TYPE} != "PROD" ]]
+    then
+      printf "\nData controller creation initiated for PRE-RELEASE version\n"
+      sed -i 's+\"repository\":.*+\"repository\": '"\"${REPOSITORY}\"",'+g' "/tmp/control.json"
+      sed -i 's/\"imageTag\":.*/\"imageTag\": '"\"${IMAGE_TAG}\"",'/g' "/tmp/control.json"
+      az arcdata dc create --name "arc-ds-controller" --path "/tmp" --connectivity-mode "direct" --cluster-name ${CLUSTER_NAME} --infrastructure ${INFRASTRUCTURE} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} --auto-upload-logs true --auto-upload-metrics true  2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+    else
+      printf "\nData controller creation initiated for PROD version\n"
+      az arcdata dc create --name "arc-ds-controller" --path "/tmp" --connectivity-mode "direct" --cluster-name ${CLUSTER_NAME} --infrastructure ${INFRASTRUCTURE} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} --auto-upload-logs true --auto-upload-metrics true  2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+    fi
     ## 30minutes
     TIMEOUT=1800
     ## 2 minutes
@@ -406,8 +440,16 @@ then
       az arcdata dc config init -s ${CONFIG_PROFILE} -p .
       sed -i 's/\"className\":.*/\"className\": '"\"${DATA_CONTROLLER_STORAGE_CLASS}\"",'/g' "control.json"
       sed -i 's/\"serviceType\":.*/\"serviceType\": '"\"${SERVICE_TYPE}\"",'/g' "control.json"
-      #az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${arc_connected_cluster} --infrastructure ${INFRASTRUCTURE} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
-      az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${CLUSTER_NAME} --infrastructure ${INFRASTRUCTURE} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} --auto-upload-logs true --auto-upload-metrics true  2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      if [[ ${RELEASE_TYPE} != "PROD" ]]
+      then 
+        printf "\nData controller creation initiated for PRE-RELEASE version\n"
+        sed -i 's+\"repository\":.*+\"repository\": '"\"${REPOSITORY}\"",'+g' "control.json"
+        sed -i 's/\"imageTag\":.*/\"imageTag\": '"\"${IMAGE_TAG}\"",'/g' "control.json"
+        az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${CLUSTER_NAME} --infrastructure ${INFRASTRUCTURE} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} --auto-upload-logs true --auto-upload-metrics true  2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      else
+        printf "\nData controller creation initiated for PROD version\n"
+        az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${CLUSTER_NAME} --infrastructure ${INFRASTRUCTURE} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} --auto-upload-logs true --auto-upload-metrics true  2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+      fi
       ## 30minutes
       TIMEOUT=1800
       ## 2 minutes
@@ -439,8 +481,16 @@ then
         az arcdata dc config init -s ${CONFIG_PROFILE} -p .
         sed -i 's/\"serviceType\":.*/\"serviceType\": '"\"${SERVICE_TYPE}\"",'/g' "control.json"
         sed -i 's/\"className\":.*/\"className\": '"\"${DATA_CONTROLLER_STORAGE_CLASS}\"",'/g' "control.json"
-        #az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${arc_connected_cluster} --infrastructure ${INFRASTRUCTURE} --subscription ${SUBSCRIPTION_ID} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} 2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
-        az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${CLUSTER_NAME} --infrastructure ${INFRASTRUCTURE} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} --auto-upload-logs true --auto-upload-metrics true  2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+        if [[ ${RELEASE_TYPE} != "PROD" ]]
+        then
+          sed -i 's+\"repository\":.*+\"repository\": '"\"${REPOSITORY}\"",'+g' "control.json"
+          sed -i 's/\"imageTag\":.*/\"imageTag\": '"\"${IMAGE_TAG}\"",'/g' "control.json"
+          printf "\nData controller creation initiated for PRE-RELEASE version\n"
+          az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${CLUSTER_NAME} --infrastructure ${INFRASTRUCTURE} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} --auto-upload-logs true --auto-upload-metrics true  2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+        else
+          printf "\nData controller creation initiated for PROD version\n"
+          az arcdata dc create --name "arc-ds-controller" --path . --connectivity-mode "direct" --cluster-name ${CLUSTER_NAME} --infrastructure ${INFRASTRUCTURE} --resource-group ${RESOURCE_GROUP} --custom-location ${CUSTOM_LOCATION_NAME} --auto-upload-logs true --auto-upload-metrics true  2> ${results_dir}/error || { $azlogs_cmd; python3 ds_setup_failure_handler.py; }
+        fi
       fi
       ## 30minutes
       TIMEOUT=1800
@@ -556,7 +606,7 @@ if [ $skip_test_count -gt 0 ]
 then
   NUM_PROCESS=$((NUM_PROCESS-skip_test_count))
   echo "number of process $NUM_PROCESS"
-  if [[ $NUM_PROCESS -le 0 ]] 
+  if [[ $NUM_PROCESS -le 0 ]]
   then
     ## Issue with arguments not matched with criteria
     echo "Number of tests mismatched. Please check arguments" > ${results_dir}/error && $azlogs_cmd && python3 ds_setup_failure_handler.py

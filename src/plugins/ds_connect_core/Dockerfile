@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM arck8sconformance.azurecr.io/library/ubuntu:20.04
 RUN apt-get update \
   && apt-get install -y python3-pip python3-dev \
   && cd /usr/local/bin \

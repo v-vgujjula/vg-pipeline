@@ -1,4 +1,4 @@
-FROM python:3.6
+FROM mcr.microsoft.com/azure-cli:2.36.0
 
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pytest kubernetes azure.identity msrestazure azure-mgmt-hybridkubernetes
 

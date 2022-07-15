@@ -22,6 +22,9 @@ def env_dict():
             # Collecting DS environment variables.
             env_dict['NUM_TESTS_COMPLETED'] = 0
             env_dict['CONNECTIVITY_MODE'] = os.getenv('CONNECTIVITY_MODE')
+            env_dict['RELEASE_TYPE'] = os.getenv('RELEASE_TYPE')
+            env_dict['REPOSITORY'] = os.getenv('REPOSITORY')
+            env_dict['IMAGE_TAG'] = os.getenv('IMAGE_TAG')
             env_dict['SERVICE_TYPE'] = os.getenv('SERVICE_TYPE')
             env_dict['LOCATION'] = os.getenv('LOCATION')
             env_dict['NAMESPACE'] = os.getenv('NAMESPACE')
